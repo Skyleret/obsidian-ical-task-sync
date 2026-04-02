@@ -37,21 +37,23 @@ class TaskBlock {
 export class TaskSyncEngine {
     
     parseMarkdown(rawText: string): TaskBlock[] {
-        // Split by newline but handle different OS line endings
         const lines = rawText.split(/\r?\n/);
         const blocks: TaskBlock[] = [];
         let currentBlock: TaskBlock | null = null;
 
         for (const line of lines) {
-            // Updated Regex to be more robust for task detection
-            if (/^\s*-\s\[[ xX]\]/.test(line)) {
+            // NEW REGEX: ^- ensures the line starts exactly with the dash (no indentation)
+            // This treats indented tasks as subContent of the previous top-level task.
+            const isTopLevelTask = /^- \[([ xX])\]/.test(line);
+
+            if (isTopLevelTask) {
                 currentBlock = new TaskBlock(line);
                 blocks.push(currentBlock);
             } else if (currentBlock) {
+                // Indented tasks, notes, or subtasks all go here
                 currentBlock.subContent.push(line);
             } else if (line.trim() !== "") {
-                // If there is text before the first task, treat it as a task-less block
-                // This prevents data loss for introductory text
+                // Handle preamble text before the first task
                 const introBlock = new TaskBlock("- [ ] " + line);
                 blocks.push(introBlock);
                 currentBlock = introBlock;
