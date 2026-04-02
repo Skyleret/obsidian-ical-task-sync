@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-ical-task-sync",
+  "name": "iCal Task Sync",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Syncs iCal events into Tasks.md without deleting manual data.",
+  "author": "Skyler W.",
+  "authorUrl": "https://skyleret.duckdns.org",
+  "isDesktopOnly": false
+}
