@@ -61,18 +61,39 @@ export class TaskSyncEngine {
     }
 
     mergeNewTasks(existingBlocks: TaskBlock[], newEvents: any[], manifest: Set<string>): TaskBlock[] {
-        const merged = [...existingBlocks];
+        const updatedBlocks = [...existingBlocks];
 
         for (const event of newEvents) {
-            if (!manifest.has(event.uid)) {
-                const dateStr = moment(event.start).format("YYYY-MM-DD");
-                // Constructing the format you requested precisely
-                const newTaskLine = `- [ ] ${event.summary} [link](${event.uid}) (@${dateStr})`;
-                merged.push(new TaskBlock(newTaskLine));
-                manifest.add(event.uid); 
+            // FORCE URL TO STRING: This is likely where the [object Object] came from
+            let eventUrl = "";
+            if (typeof event.url === 'string') {
+                eventUrl = event.url;
+            } else if (event.url && typeof event.url === 'object' && event.url.val) {
+                eventUrl = event.url.val;
+            }
+
+            if (!eventUrl) continue; // Skip events without a valid URL
+
+            const eventDate = moment(event.start).format("YYYY-MM-DD");
+            const eventSummary = event.summary;
+
+            const existingBlockIndex = updatedBlocks.findIndex(b => b.metadata.id === eventUrl);
+
+            if (existingBlockIndex !== -1) {
+                const block = updatedBlocks[existingBlockIndex];
+                const newMainLine = `- [ ] ${eventSummary} [link](${eventUrl}) (@${eventDate})`;
+                
+                if (block.mainLine !== newMainLine) {
+                    block.mainLine = newMainLine;
+                    block.metadata.date = eventDate;
+                }
+            } else if (!manifest.has(eventUrl)) {
+                const newTaskLine = `- [ ] ${eventSummary} [link](${eventUrl}) (@${eventDate})`;
+                updatedBlocks.push(new TaskBlock(newTaskLine));
+                // We don't add to manifest here; we do it in main.ts after the sync succeeds
             }
         }
-        return merged;
+        return updatedBlocks;
     }
 
     sortBlocks(blocks: TaskBlock[]): TaskBlock[] {

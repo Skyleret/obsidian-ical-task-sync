@@ -8,12 +8,14 @@ interface PluginSettings {
     icalUrl: string;
     targetFilename: string;
     lastSyncTimestamp: number;
+    syncedUids: Record<string, string>; // Move manifest here
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
     icalUrl: '',
     targetFilename: 'Tasks.md',
-    lastSyncTimestamp: 0
+    lastSyncTimestamp: 0,
+    syncedUids: {}
 };
 
 export default class ICalSyncPlugin extends Plugin {
@@ -23,10 +25,9 @@ export default class ICalSyncPlugin extends Plugin {
 
     async onload() {
         await this.loadSettings();
-        
         this.engine = new TaskSyncEngine();
-        this.syncManifest = new ManifestManager(this);
-        await this.syncManifest.load();
+        // Pass the settings object directly
+        this.syncManifest = new ManifestManager(this.settings);
 
         this.addSettingTab(new ICalSyncSettingTab(this.app, this));
 
