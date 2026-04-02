@@ -4,6 +4,7 @@
 Syncs your calendar events into a `### Tasks` header.
 ## Format Used
 - [ ] Task Name [link](LINK) (@YYYY-MM-DD)
+
 *This project assumes that a distinct task is determined by its link*
 
 ## Features
