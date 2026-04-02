@@ -48,18 +48,20 @@ export default class ICalSyncPlugin extends Plugin {
             name: 'Sync Tasks Now',
             callback: () => {
                 const activeFile = this.app.workspace.getActiveFile();
-                if (activeFile) this.runSync(activeFile);
+                if (activeFile) this.runSync(activeFile,true);
             }
         });
     }
 
-    async runSync(file: TFile) {
+    async runSync(file: TFile, force: boolean = false) {
         if (!this.settings.icalUrl) {
             return; // Silently fail or show notice in settings
         }
 
         const now = Date.now();
-        if (now - this.settings.lastSyncTimestamp < 300000) return;
+        if (!force && (now - this.settings.lastSyncTimestamp < 300000)) {
+            return; 
+        }
 
         try {
             const response = await requestUrl(this.settings.icalUrl);
@@ -97,6 +99,8 @@ export default class ICalSyncPlugin extends Plugin {
 
             this.settings.lastSyncTimestamp = now;
             await this.saveSettings();
+
+            if (force) new Notice("Manual sync complete.");
             
         } catch (error) {
             console.error("iCal Sync Error:", error);
