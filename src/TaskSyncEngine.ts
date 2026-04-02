@@ -66,17 +66,23 @@ export class TaskSyncEngine {
         const updatedBlocks = [...existingBlocks];
 
         for (const event of newEvents) {
+            const eventDate = moment(event.start).format("YYYY-MM-DD");
+            
             // FORCE URL TO STRING: This is likely where the [object Object] came from
             let eventUrl = "";
             if (typeof event.url === 'string') {
                 eventUrl = event.url;
             } else if (event.url && typeof event.url === 'object' && event.url.val) {
                 eventUrl = event.url.val;
+            } else {
+                // FALLBACK: Create a unique string based on content
+                // We replace spaces to keep the [link](...) format clean
+                const safeSummary = event.summary.replace(/[()\[\]\s]/g, "");
+                eventUrl = `fallback-${safeSummary}-${eventDate}`;
             }
 
             if (!eventUrl) continue; // Skip events without a valid URL
 
-            const eventDate = moment(event.start).format("YYYY-MM-DD");
             const eventSummary = event.summary;
 
             const existingBlockIndex = updatedBlocks.findIndex(b => b.metadata.id === eventUrl);
