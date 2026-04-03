@@ -1,8 +1,10 @@
 import { Plugin, TFile, MarkdownView, Notice, requestUrl } from 'obsidian';
-import * as ical from 'node-ical';
+import ICAL from 'ical.js';
 import { TaskSyncEngine } from './TaskSyncEngine';
 import { ManifestManager } from './syncManifest';
 import { ICalSyncSettingTab } from './SettingsTab';
+import { moment } from 'obsidian';
+import { setIcon } from 'obsidian';
 
 interface PluginSettings {
     icalUrl: string;
@@ -34,10 +36,11 @@ export default class ICalSyncPlugin extends Plugin {
 
         // Create item and set initial state
         this.syncStatusItem = this.addStatusBarItem();
-        this.syncStatusItem.addClass("cursor-pointer"); // Hint that it's clickable
-        
+        this.syncStatusItem.addClass("ical-task-sync-cursor-pointer"); 
+        this.syncStatusItem.addClass("ical-sync-item-clickable");
+
         // ADD THIS: Manual sync/refresh on click
-        this.syncStatusItem.onClickEvent(() => {
+        this.syncStatusItem.addEventListener("click", () => {
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile && activeFile.name === this.settings.targetFilename) {
                 // We pass 'true' to force the sync regardless of the 5-minute timer
@@ -58,6 +61,19 @@ export default class ICalSyncPlugin extends Plugin {
             })
         );
 
+        this.registerDomEvent(window, 'focus', () => {
+            const activeFile = this.app.workspace.getActiveFile();
+            
+            // Only trigger if we aren't already syncing and we are looking at the task file
+            if (!this.isSyncing && 
+                activeFile && 
+                activeFile.name === this.settings.targetFilename) {
+                
+                console.log("App focused: Triggering auto-sync for tasks.");
+                this.runSync(activeFile, false); // 'false' because it's automatic, not 'forced'
+            }
+        });
+
         this.addCommand({
             id: 'ical-sync',
             name: 'Sync tasks now', // Sentence case for guidelines
@@ -73,20 +89,36 @@ export default class ICalSyncPlugin extends Plugin {
         this.syncStatusItem.remove();
     }
 
-    private getRelativeTime(timestamp: number): string {
-        if (!timestamp || timestamp === 0) return "never";
-        
-        const diffInMs = Date.now() - timestamp;
-        const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-        const diffInHours = Math.floor(diffInMinutes / 60);
-        const diffInDays = Math.floor(diffInHours / 24);
+    private getFormattedTime(timestamp: number): string {
+        if (!timestamp || timestamp === 0) return "Never";
+        // Formats to "14:30" or "2:30 PM" based on user's locale
+        return moment(timestamp).format("LT"); 
+    }
 
-        // Rounding to the minute
-        if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-        if (diffInHours < 24) return `${diffInHours}h ago`;
-        if (diffInDays === 1) return "yesterday";
-        
-        return `${diffInDays}d ago`;
+    updateStatusBar(syncing: boolean) {
+        this.syncStatusItem.empty();
+        // Re-add the class to ensure hover/flex styles apply
+        this.syncStatusItem.addClass("ical-sync-item-clickable");
+
+        // Create a single wrapper to hold both the icon and text
+        const container = this.syncStatusItem.createEl("div", { cls: "ical-status-container" });
+        const iconSpan = container.createEl("span", { cls: "ical-status-icon" });
+        const textSpan = container.createEl("span", { cls: "ical-status-text" });
+
+        if (syncing) {
+            setIcon(iconSpan, "refresh-cw");
+            iconSpan.addClass("ical-task-sync-spin");
+            textSpan.setText("Syncing...");
+        } else {
+            const lastSync = this.settings.lastSyncTimestamp;
+            if (lastSync === 0) {
+                setIcon(iconSpan, "calendar-off");
+                textSpan.setText("Never synced");
+            } else {
+                setIcon(iconSpan, "calendar-check");
+                textSpan.setText(`Synced at ${moment(lastSync).format("LT")}`);
+            }
+        }
     }
 
     private async handleFileChange() {
@@ -100,31 +132,6 @@ export default class ICalSyncPlugin extends Plugin {
             await this.runSync(activeFile);
         } else {
             this.toggleStatusBarVisibility(false);
-        }
-    }
-
-    updateStatusBar(syncing: boolean) {
-        if (syncing) {
-            // State 1: Syncing
-            this.syncStatusItem.setText("⏳ Syncing...");
-            this.syncStatusItem.addClass("is-syncing");
-            return;
-        }
-
-        this.syncStatusItem.removeClass("is-syncing");
-        const lastSync = this.settings.lastSyncTimestamp;
-        const diffInHours = (Date.now() - lastSync) / (1000 * 60 * 60);
-
-        if (lastSync === 0) {
-            this.syncStatusItem.setText("❌ Never synced");
-        } else if (diffInHours >= 24) {
-            // State 3: Last synced yesterday or older
-            const timeStr = this.getRelativeTime(lastSync);
-            this.syncStatusItem.setText(`❌ Synced ${timeStr}`);
-        } else {
-            // State 2: Synced within the last 24 hours
-            const timeStr = this.getRelativeTime(lastSync);
-            this.syncStatusItem.setText(`✅ Synced ${timeStr}`);
         }
     }
 
@@ -145,11 +152,28 @@ export default class ICalSyncPlugin extends Plugin {
 
         try {
             const response = await requestUrl(this.settings.icalUrl);
-            const data = ical.parseICS(response.text);
+            // node-ical.parseICS becomes ICAL.parse
+            const jcalData = ICAL.parse(response.text);
+            const vcalendar = new ICAL.Component(jcalData);
             
-            const eventList = Object.values(data).filter((e): e is ical.VEvent => 
-                e !== undefined && e.type === 'VEVENT'
-            );
+            // Get all VEVENT components
+            const vevents = vcalendar.getAllSubcomponents('vevent');
+            
+            // Convert them to a format your TaskSyncEngine expects
+            const eventList = vevents.map(vevent => {
+                const event = new ICAL.Event(vevent);
+                
+                // Use the raw vevent component to fetch the URL property
+                const urlProp = vevent.getFirstPropertyValue('url');
+                
+                return {
+                    summary: event.summary,
+                    start: event.startDate.toJSDate(),
+                    // Fallback to UID if URL isn't present
+                    url: urlProp || event.uid,
+                    type: 'VEVENT'
+                };
+            });
 
             await this.app.vault.process(file, (content) => {
                 if (!content.includes('### Tasks')) {

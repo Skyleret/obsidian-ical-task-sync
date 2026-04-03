@@ -1,0 +1,58 @@
+/* The status bar item itself */
+.ical-sync-item-clickable {
+    display: inline-flex;
+    align-items: center;
+    align-self: stretch;
+    height: 100%;
+    padding: 0 8px;
+    cursor: var(--cursor-link);
+    border-radius: var(--button-radius);
+    transition: background-color 0.15s ease-in-out;
+}
+
+/* The wrapper we created in JS */
+.ical-status-container {
+    display: flex;
+    flex-direction: row; /* Forces horizontal */
+    align-items: center;
+    white-space: nowrap; /* Prevents wrapping to new line */
+}
+
+/* Icon alignment */
+.ical-status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 6px;
+    height: 100%;
+}
+
+.ical-status-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Text alignment */
+.ical-status-text {
+    font-size: var(--status-bar-font-size);
+    color: var(--text-muted);
+    line-height: 1; /* Helps with the baseline alignment */
+}
+
+.ical-sync-item-clickable:hover .ical-status-text {
+    color: var(--text-normal);
+}
+
+.ical-sync-item-clickable:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+/* Spinning Animation */
+.ical-task-sync-spin svg {
+    animation: ical-rotate 2s linear infinite;
+}
+
+@keyframes ical-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

@@ -1,15 +1,14 @@
 {
-  "name": "obsidian-ical-task-sync",
+  "name": "ical-task-sync",
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --external:obsidian --minify --outfile=main.js --platform=node --format=cjs --define:process.env.NODE_ENV='\"production\"'",
+    "build": "esbuild src/main.ts --external:moment --bundle --external:obsidian --minify --outfile=main.js --platform=node --format=cjs --define:process.env.NODE_ENV='\"production\"'",
     "dev": "esbuild src/main.ts --bundle --external:obsidian --outfile=main.js --watch --platform=node --format=cjs"
   },
   "dependencies": {
     "ical.js": "^2.2.1",
-    "moment": "^2.30.1",
-    "node-ical": "^0.25.6"
+    "moment": "^2.30.1"
   },
   "devDependencies": {
     "esbuild": "0.20.0",

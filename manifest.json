@@ -1,10 +1,10 @@
 {
   "id": "ical-task-sync",
-  "name": "iCal Task Sync",
-  "version": "1.0.0",
-  "minAppVersion": "1.0.0",
+  "name": "Obsidian iCal Task Sync",
+  "version": "1.0.1",
+  "minAppVersion": "1.11.0",
   "description": "Syncs and sorts iCal events into 'Tasks.md' without deleting manual data on entering the file.",
   "author": "Skyler W.",
   "authorUrl": "https://skyleret.duckdns.org",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }
