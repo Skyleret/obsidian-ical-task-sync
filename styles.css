@@ -56,3 +56,15 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+/* Make the ribbon icon pulse slightly when syncing */
+.is-syncing-ribbon {
+    color: var(--text-accent) !important;
+    animation: ical-pulse 1.5s infinite;
+}
+
+@keyframes ical-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}

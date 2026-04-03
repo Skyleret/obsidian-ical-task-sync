@@ -1,10 +1,8 @@
-import { Plugin, TFile, MarkdownView, Notice, requestUrl } from 'obsidian';
+import { Plugin, TFile, MarkdownView, Notice, requestUrl, setIcon, addIcon, moment } from 'obsidian';
 import ICAL from 'ical.js';
 import { TaskSyncEngine } from './TaskSyncEngine';
 import { ManifestManager } from './syncManifest';
 import { ICalSyncSettingTab } from './SettingsTab';
-import { moment } from 'obsidian';
-import { setIcon } from 'obsidian';
 
 interface PluginSettings {
     icalUrl: string;
@@ -26,6 +24,7 @@ export default class ICalSyncPlugin extends Plugin {
     settings!: PluginSettings; 
     engine!: TaskSyncEngine;
     syncManifest!: ManifestManager;
+    ribbonIconEl: HTMLElement | null = null;
 
     async onload() {
         await this.loadSettings();
@@ -74,12 +73,35 @@ export default class ICalSyncPlugin extends Plugin {
             }
         });
 
+        // 2. INITIALIZE RIBBON ICON
+        this.ribbonIconEl = this.addRibbonIcon('calendar-glyph', 'Sync iCal Tasks', () => {
+            const activeFile = this.app.workspace.getActiveFile();
+            if (activeFile) this.runSync(activeFile, true);
+        });
+
+        // 3. CONTEXTUAL VISIBILITY CHECK
+        // Run once on load
+        this.app.workspace.onLayoutReady(() => {
+            this.refreshVisibility(this.app.workspace.getActiveFile());
+        });
+
+        // Run whenever the user switches files
+        this.registerEvent(
+            this.app.workspace.on('file-open', (file) => {
+                this.refreshVisibility(file);
+            })
+        );
+
         this.addCommand({
-            id: 'ical-sync',
-            name: 'Sync tasks now', // Sentence case for guidelines
+            id: 'sync-ical-tasks',
+            name: 'Sync iCal tasks now',
             callback: () => {
                 const activeFile = this.app.workspace.getActiveFile();
-                if (activeFile) this.runSync(activeFile, true);
+                if (activeFile && activeFile.name === this.settings.targetFilename) {
+                    this.runSync(activeFile, true);
+                } else {
+                    new Notice(`Please open ${this.settings.targetFilename} to sync.`);
+                }
             }
         });
     }
@@ -87,6 +109,20 @@ export default class ICalSyncPlugin extends Plugin {
     onunload() {
         // Explicitly remove the status bar item
         this.syncStatusItem.remove();
+    }
+    
+    private refreshVisibility(file: TFile | null) {
+        const isTarget = file && file.name === this.settings.targetFilename;
+        
+        // Toggle Ribbon Icon
+        if (this.ribbonIconEl) {
+            this.ribbonIconEl.style.display = isTarget ? 'flex' : 'none';
+        }
+
+        // Toggle Status Bar
+        if (this.syncStatusItem) {
+            this.syncStatusItem.style.display = isTarget ? 'inline-flex' : 'none';
+        }
     }
 
     private getFormattedTime(timestamp: number): string {
@@ -137,7 +173,10 @@ export default class ICalSyncPlugin extends Plugin {
 
     async runSync(file: TFile, force: boolean = false) {
         if (this.isSyncing) return;
-        if (!this.settings.icalUrl) return;
+        if (!this.settings.icalUrl || this.settings.icalUrl.trim() === "") {
+            if (force) new Notice("Please set an iCal URL in the settings.");
+            return;
+        } 
 
         const now = Date.now();
         // Skip if not forced and within 5 min window
@@ -149,6 +188,7 @@ export default class ICalSyncPlugin extends Plugin {
 
         this.isSyncing = true;
         this.updateStatusBar(true);
+        if (this.ribbonIconEl) this.ribbonIconEl.addClass("is-syncing-ribbon");
 
         try {
             const response = await requestUrl(this.settings.icalUrl);
@@ -213,6 +253,7 @@ export default class ICalSyncPlugin extends Plugin {
         } finally {
             this.isSyncing = false;
             this.updateStatusBar(false);
+            if (this.ribbonIconEl) this.ribbonIconEl.removeClass("is-syncing-ribbon");
         }
     }
     async loadSettings() {
