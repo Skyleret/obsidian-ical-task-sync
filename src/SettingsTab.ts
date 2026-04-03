@@ -12,7 +12,7 @@ export class ICalSyncSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
-        containerEl.createEl('h2', { text: 'iCal Task Sync Settings' });
+        new Setting(containerEl).setName('iCal task sync').setHeading();
 
         new Setting(containerEl)
             .setName('iCal URL')

@@ -32,35 +32,35 @@ export default class ICalSyncPlugin extends Plugin {
 
         this.addSettingTab(new ICalSyncSettingTab(this.app, this));
 
+        // Create item and set initial state
         this.syncStatusItem = this.addStatusBarItem();
-        this.toggleStatusBarVisibility(false); 
-        this.updateStatusBar(false)
+        this.syncStatusItem.addClass("cursor-pointer"); // Hint that it's clickable
+        
+        // ADD THIS: Manual sync/refresh on click
+        this.syncStatusItem.onClickEvent(() => {
+            const activeFile = this.app.workspace.getActiveFile();
+            if (activeFile && activeFile.name === this.settings.targetFilename) {
+                // We pass 'true' to force the sync regardless of the 5-minute timer
+                this.runSync(activeFile, true);
+            }
+        });
+
+        this.updateStatusBar(false);
+        
+        // CRITICAL: Check visibility immediately on load
+        this.app.workspace.onLayoutReady(() => {
+            this.handleFileChange();
+        });
 
         this.registerEvent(
-            this.app.workspace.on('active-leaf-change', async (leaf) => {
-                if (leaf?.view instanceof MarkdownView) {
-                    const file = leaf.view.file;
-                    if (file && file.name === this.settings.targetFilename) {
-                        await this.runSync(file);
-                    }
-                }
-                const activeFile = this.app.workspace.getActiveFile();
-                if (activeFile && activeFile.name === this.settings.targetFilename) {
-                    // SHOW the bar because we are in the right file
-                    this.syncStatusItem.style.display = 'inline-block';
-                    
-                    // Trigger the sync logic
-                    this.runSync(activeFile);
-                } else {
-                    // HIDE the bar for everything else
-                    this.syncStatusItem.style.display = 'none';
-                }
+            this.app.workspace.on('active-leaf-change', () => {
+                this.handleFileChange();
             })
         );
 
         this.addCommand({
-            id: 'run-ical-sync',
-            name: 'Sync Tasks Now',
+            id: 'ical-sync',
+            name: 'Sync tasks now', // Sentence case for guidelines
             callback: () => {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) this.runSync(activeFile, true);
@@ -68,13 +68,63 @@ export default class ICalSyncPlugin extends Plugin {
         });
     }
 
+    onunload() {
+        // Explicitly remove the status bar item
+        this.syncStatusItem.remove();
+    }
+
+    private getRelativeTime(timestamp: number): string {
+        if (!timestamp || timestamp === 0) return "never";
+        
+        const diffInMs = Date.now() - timestamp;
+        const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        const diffInDays = Math.floor(diffInHours / 24);
+
+        // Rounding to the minute
+        if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+        if (diffInHours < 24) return `${diffInHours}h ago`;
+        if (diffInDays === 1) return "yesterday";
+        
+        return `${diffInDays}d ago`;
+    }
+
+    private async handleFileChange() {
+        const activeFile = this.app.workspace.getActiveFile();
+        const isTarget = activeFile && activeFile.name === this.settings.targetFilename;
+
+        if (isTarget) {
+            this.toggleStatusBarVisibility(true);
+            this.updateStatusBar(this.isSyncing);
+            // Auto-sync only if it's the target file
+            await this.runSync(activeFile);
+        } else {
+            this.toggleStatusBarVisibility(false);
+        }
+    }
+
     updateStatusBar(syncing: boolean) {
         if (syncing) {
-            this.syncStatusItem.setText("⏳ iCal Syncing...");
+            // State 1: Syncing
+            this.syncStatusItem.setText("⏳ Syncing...");
             this.syncStatusItem.addClass("is-syncing");
+            return;
+        }
+
+        this.syncStatusItem.removeClass("is-syncing");
+        const lastSync = this.settings.lastSyncTimestamp;
+        const diffInHours = (Date.now() - lastSync) / (1000 * 60 * 60);
+
+        if (lastSync === 0) {
+            this.syncStatusItem.setText("❌ Never synced");
+        } else if (diffInHours >= 24) {
+            // State 3: Last synced yesterday or older
+            const timeStr = this.getRelativeTime(lastSync);
+            this.syncStatusItem.setText(`❌ Synced ${timeStr}`);
         } else {
-            this.syncStatusItem.setText("✅ iCal Ready");
-            this.syncStatusItem.removeClass("is-syncing");
+            // State 2: Synced within the last 24 hours
+            const timeStr = this.getRelativeTime(lastSync);
+            this.syncStatusItem.setText(`✅ Synced ${timeStr}`);
         }
     }
 
@@ -83,7 +133,12 @@ export default class ICalSyncPlugin extends Plugin {
         if (!this.settings.icalUrl) return;
 
         const now = Date.now();
-        if (!force && (now - this.settings.lastSyncTimestamp < 300000)) return; 
+        // Skip if not forced and within 5 min window
+        if (!force && (now - this.settings.lastSyncTimestamp < 300000)) {
+            // Even if we skip the sync, we update the bar to show the "last synced" time
+            this.updateStatusBar(false);
+            return;
+        }
 
         this.isSyncing = true;
         this.updateStatusBar(true);
@@ -97,7 +152,6 @@ export default class ICalSyncPlugin extends Plugin {
             );
 
             await this.app.vault.process(file, (content) => {
-                // GUARD: Ensure header exists so we don't overwrite the whole file
                 if (!content.includes('### Tasks')) {
                     new Notice("Sync aborted: '### Tasks' header missing.");
                     return content; 
@@ -120,9 +174,14 @@ export default class ICalSyncPlugin extends Plugin {
                 return `${header}### Tasks\n${this.engine.render(sortedBlocks)}`;
             });
 
-            this.settings.lastSyncTimestamp = now;
+            this.settings.lastSyncTimestamp = Date.now();
             await this.saveSettings();
-            if (force) new Notice("Sync complete.");
+            
+            // NOTICE FIX: Always show notice if forced, 
+            // or maybe a smaller notice if it was automatic and found new items
+            if (force) {
+                new Notice("Calendar sync complete.");
+            }
             
         } catch (error) {
             console.error("iCal Sync Error:", error);

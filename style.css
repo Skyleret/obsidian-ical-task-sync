@@ -1,0 +1,26 @@
+/* Make the syncing icon pulse or spin */
+.is-syncing {
+    color: var(--text-accent);
+    opacity: 0.8;
+}
+
+/* Optional: Make the error state red-ish if you want it to pop */
+.status-bar-item:contains("❌") {
+    color: var(--text-error);
+}
+.cursor-pointer {
+    cursor: pointer;
+}
+.cursor-pointer:hover {
+    color: var(--text-accent-hover);
+    background-color: var(--background-modifier-hover);
+}
+.is-syncing {
+    animation: ical-spin 2s linear infinite;
+    display: inline-block;
+}
+
+@keyframes ical-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
