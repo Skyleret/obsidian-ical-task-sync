@@ -33,65 +33,42 @@ export default class ICalSyncPlugin extends Plugin {
 
         this.addSettingTab(new ICalSyncSettingTab(this.app, this));
 
-        // Create item and set initial state
+        // 1. Status Bar Setup
         this.syncStatusItem = this.addStatusBarItem();
-        this.syncStatusItem.addClass("ical-task-sync-cursor-pointer"); 
+        // Classes for CSS styling
         this.syncStatusItem.addClass("ical-sync-item-clickable");
-
-        // ADD THIS: Manual sync/refresh on click
+        
         this.syncStatusItem.addEventListener("click", () => {
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile && activeFile.name === this.settings.targetFilename) {
-                // We pass 'true' to force the sync regardless of the 5-minute timer
-                this.runSync(activeFile, true);
+                this.runSync(activeFile, true); // Force sync on click
             }
         });
 
-        this.updateStatusBar(false);
-        
-        // CRITICAL: Check visibility immediately on load
-        this.app.workspace.onLayoutReady(() => {
-            this.handleFileChange();
-        });
-
-        this.registerEvent(
-            this.app.workspace.on('active-leaf-change', () => {
-                this.handleFileChange();
-            })
-        );
-
-        this.registerDomEvent(window, 'focus', () => {
-            const activeFile = this.app.workspace.getActiveFile();
-            
-            // Only trigger if we aren't already syncing and we are looking at the task file
-            if (!this.isSyncing && 
-                activeFile && 
-                activeFile.name === this.settings.targetFilename) {
-                
-                console.log("App focused: Triggering auto-sync for tasks.");
-                this.runSync(activeFile, false); // 'false' because it's automatic, not 'forced'
-            }
-        });
-
-        // 2. INITIALIZE RIBBON ICON
+        // 2. Ribbon Icon Setup
         this.ribbonIconEl = this.addRibbonIcon('calendar-glyph', 'Sync iCal Tasks', () => {
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile) this.runSync(activeFile, true);
         });
 
-        // 3. CONTEXTUAL VISIBILITY CHECK
-        // Run once on load
+        // 3. Visibility & Auto-Sync Logic
         this.app.workspace.onLayoutReady(() => {
-            this.refreshVisibility(this.app.workspace.getActiveFile());
+            this.handleFileChange();
         });
 
-        // Run whenever the user switches files
         this.registerEvent(
-            this.app.workspace.on('file-open', (file) => {
-                this.refreshVisibility(file);
-            })
+            this.app.workspace.on('file-open', () => this.handleFileChange())
         );
 
+        // Sync when returning to the app
+        this.registerDomEvent(window, 'focus', () => {
+            const activeFile = this.app.workspace.getActiveFile();
+            if (activeFile && activeFile.name === this.settings.targetFilename) {
+                this.runSync(activeFile, false); 
+            }
+        });
+
+        // 4. Command Palette
         this.addCommand({
             id: 'sync-ical-tasks',
             name: 'Sync iCal tasks now',
@@ -111,38 +88,31 @@ export default class ICalSyncPlugin extends Plugin {
         this.syncStatusItem.remove();
     }
     
-    private refreshVisibility(file: TFile | null) {
-        const isTarget = file && file.name === this.settings.targetFilename;
-        
-        // Toggle Ribbon Icon
-        if (this.ribbonIconEl) {
-            this.ribbonIconEl.style.display = isTarget ? 'flex' : 'none';
-        }
+    private handleFileChange() {
+        const activeFile = this.app.workspace.getActiveFile();
+        const isTarget = activeFile && activeFile.name === this.settings.targetFilename;
 
-        // Toggle Status Bar
+        // Update Visibility
+        if (this.ribbonIconEl) this.ribbonIconEl.style.display = isTarget ? 'flex' : 'none';
         if (this.syncStatusItem) {
             this.syncStatusItem.style.display = isTarget ? 'inline-flex' : 'none';
         }
-    }
 
-    private getFormattedTime(timestamp: number): string {
-        if (!timestamp || timestamp === 0) return "Never";
-        // Formats to "14:30" or "2:30 PM" based on user's locale
-        return moment(timestamp).format("LT"); 
+        // Auto-sync if it's the target file (Design Choice #2)
+        if (isTarget) {
+            this.updateStatusBar(this.isSyncing);
+            this.runSync(activeFile, false); 
+        }
     }
 
     updateStatusBar(syncing: boolean) {
         this.syncStatusItem.empty();
-        // Re-add the class to ensure hover/flex styles apply
-        this.syncStatusItem.addClass("ical-sync-item-clickable");
-
-        // Create a single wrapper to hold both the icon and text
         const container = this.syncStatusItem.createEl("div", { cls: "ical-status-container" });
         const iconSpan = container.createEl("span", { cls: "ical-status-icon" });
         const textSpan = container.createEl("span", { cls: "ical-status-text" });
 
         if (syncing) {
-            setIcon(iconSpan, "refresh-cw");
+            setIcon(iconSpan, "refresh-cw"); // Lucide icon
             iconSpan.addClass("ical-task-sync-spin");
             textSpan.setText("Syncing...");
         } else {
@@ -154,20 +124,6 @@ export default class ICalSyncPlugin extends Plugin {
                 setIcon(iconSpan, "calendar-check");
                 textSpan.setText(`Synced at ${moment(lastSync).format("LT")}`);
             }
-        }
-    }
-
-    private async handleFileChange() {
-        const activeFile = this.app.workspace.getActiveFile();
-        const isTarget = activeFile && activeFile.name === this.settings.targetFilename;
-
-        if (isTarget) {
-            this.toggleStatusBarVisibility(true);
-            this.updateStatusBar(this.isSyncing);
-            // Auto-sync only if it's the target file
-            await this.runSync(activeFile);
-        } else {
-            this.toggleStatusBarVisibility(false);
         }
     }
 
@@ -252,8 +208,10 @@ export default class ICalSyncPlugin extends Plugin {
             new Notice("iCal Sync failed.");
         } finally {
             this.isSyncing = false;
-            this.updateStatusBar(false);
-            if (this.ribbonIconEl) this.ribbonIconEl.removeClass("is-syncing-ribbon");
+            this.updateStatusBar(false); // Ensure the spinner stops
+            if (this.ribbonIconEl) {
+                this.ribbonIconEl.removeClass("is-syncing-ribbon");
+            }
         }
     }
     async loadSettings() {
@@ -262,13 +220,5 @@ export default class ICalSyncPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
-    }
-
-    private toggleStatusBarVisibility(visible: boolean) {
-        if (visible) {
-            this.syncStatusItem.style.display = 'inline-block';
-        } else {
-            this.syncStatusItem.style.display = 'none';
-        }
     }
 }
