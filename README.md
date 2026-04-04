@@ -19,6 +19,6 @@ Syncs your calendar events into a `### Tasks` header.
 - Sync can also be triggered by pressing keyboard shortcut from settings or clicking on the status bar icon. 
 
 ## Network use
-- Pull tasks from user specified url 
+- Obtain ical event data from user specified ical url(e.g., Google Calendar, iCloud)
 
 *Written with gemini AI*

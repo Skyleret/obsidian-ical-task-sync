@@ -3,7 +3,7 @@ import { moment } from 'obsidian';
 interface TaskMetadata {
     id: string | null;
     date: string | null;
-    isCompleted: boolean;
+    statusChar: string;
 }
 
 class TaskBlock {
@@ -20,11 +20,14 @@ class TaskBlock {
         const uidMatch = line.match(/\[link\]\((.*?)\)/);
         const dateMatch = line.match(/@(\d{4}-\d{2}-\d{2})/);
         
-        // Use ?? null to convert any undefined results to null strictly
+        // REGEX FIX: Capture whatever is inside [ ]
+        const statusMatch = line.match(/^- \[([^\]])\]/); 
+        const statusChar = statusMatch ? statusMatch[1] : " ";
+
         return {
             id: (uidMatch && uidMatch[1]) ? uidMatch[1] : null,
             date: (dateMatch && dateMatch[1]) ? dateMatch[1] : null,
-            isCompleted: line.toLowerCase().includes("- [x]")
+            statusChar: statusChar
         };
     }
 
@@ -67,7 +70,6 @@ export class TaskSyncEngine {
 
         for (const event of newEvents) {
             const eventDate = moment(event.start).format("YYYY-MM-DD");
-            
             let eventUrl = typeof event.url === 'string' ? event.url : "";
         
             if (!eventUrl) {
@@ -76,12 +78,13 @@ export class TaskSyncEngine {
             }
 
             const eventSummary = event.summary;
-
             const existingBlockIndex = updatedBlocks.findIndex(b => b.metadata.id === eventUrl);
 
             if (existingBlockIndex !== -1) {
                 const block = updatedBlocks[existingBlockIndex];
-                const newMainLine = `- [ ] ${eventSummary} [link](${eventUrl}) (@${eventDate})`;
+
+                const char = block.metadata.statusChar;
+                const newMainLine = `- [${char}] ${eventSummary} [link](${eventUrl}) (@${eventDate})`;
                 
                 if (block.mainLine !== newMainLine) {
                     block.mainLine = newMainLine;
