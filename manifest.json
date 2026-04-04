@@ -1,7 +1,7 @@
 {
   "id": "ical-task-sync",
-  "name": "Obsidian iCal Task Sync",
-  "version": "1.1.0",
+  "name": "iCal Task Sync",
+  "version": "1.1.1",
   "minAppVersion": "1.11.0",
   "description": "Sync and sort iCal events into a Markdown task list.",
   "author": "Skyler W.",
