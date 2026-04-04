@@ -1,8 +1,14 @@
 # Obsidian iCal Task Sync
 **This is an [obsidian](https://obsidian.md/) plugin**
-![[screenshot.png]]
+
+![A screenshot of this plugin](screenshot.png)
+
 Syncs your calendar events into a `### Tasks` header.
 ## Format Used
+`- [ ] Task Name [link](LINK) (@YYYY-MM-DD)`
+
+renders to
+
 - [ ] Task Name [link](LINK) (@YYYY-MM-DD)
 
 *This works best with icals containing links, though a missing url won't break this plugin's core function*
