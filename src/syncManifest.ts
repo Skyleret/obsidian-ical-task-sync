@@ -1,16 +1,11 @@
-import { Plugin } from 'obsidian';
-
-interface ManifestData {
-    syncedUids: Record<string, string>;
-}
+import type { PluginSettings } from "./main";
 
 export class ManifestManager {
-    private settings: any; // We will pass the settings object here
+    private settings: PluginSettings; // We will pass the settings object here
     private cache: Set<string> = new Set();
 
-    constructor(settings: any) {
+    constructor(settings: PluginSettings) {
         this.settings = settings;
-        // Initialize cache from settings
         if (this.settings.syncedUids) {
             this.cache = new Set(Object.keys(this.settings.syncedUids));
         }

@@ -1,10 +1,10 @@
-import { Plugin, TFile, MarkdownView, Notice, requestUrl, setIcon, addIcon, moment } from 'obsidian';
-import ICAL from 'ical.js';
-import { TaskSyncEngine } from './TaskSyncEngine';
-import { ManifestManager } from './syncManifest';
-import { ICalSyncSettingTab } from './SettingsTab';
+import { Plugin, TFile, Notice, requestUrl, setIcon, moment } from "obsidian";
+import ICAL from "ical.js";
+import { TaskSyncEngine } from "./TaskSyncEngine";
+import { ManifestManager } from "./syncManifest";
+import { ICalSyncSettingTab } from "./SettingsTab";
 
-interface PluginSettings {
+export interface PluginSettings {
     icalUrl: string;
     targetFilename: string;
     lastSyncTimestamp: number;
@@ -12,21 +12,21 @@ interface PluginSettings {
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
-    icalUrl: '',
-    targetFilename: 'Tasks.md',
+    icalUrl: "",
+    targetFilename: "Tasks.md",
     lastSyncTimestamp: 0,
-    syncedUids: {}
+    syncedUids: {},
 };
 
 export default class ICalSyncPlugin extends Plugin {
     isSyncing = false;
     syncStatusItem!: HTMLElement;
-    settings!: PluginSettings; 
+    settings!: PluginSettings;
     engine!: TaskSyncEngine;
     syncManifest!: ManifestManager;
     ribbonIconEl: HTMLElement | null = null;
 
-    async onload() {
+    override async onload() {
         await this.loadSettings();
         this.engine = new TaskSyncEngine();
         this.syncManifest = new ManifestManager(this.settings);
@@ -37,19 +37,26 @@ export default class ICalSyncPlugin extends Plugin {
         this.syncStatusItem = this.addStatusBarItem();
         // Classes for CSS styling
         this.syncStatusItem.addClass("ical-sync-item-clickable");
-        
+
         this.syncStatusItem.addEventListener("click", () => {
             const activeFile = this.app.workspace.getActiveFile();
-            if (activeFile && activeFile.name === this.settings.targetFilename) {
-                this.runSync(activeFile, true); // Force sync on click
+            if (
+                activeFile &&
+                activeFile.name === this.settings.targetFilename
+            ) {
+                void this.runSync(activeFile, true); // Force sync on click
             }
         });
 
         // 2. Ribbon Icon Setup
-        this.ribbonIconEl = this.addRibbonIcon('calendar-glyph', 'Sync iCal Tasks', () => {
-            const activeFile = this.app.workspace.getActiveFile();
-            if (activeFile) this.runSync(activeFile, true);
-        });
+        this.ribbonIconEl = this.addRibbonIcon(
+            "calendar-glyph",
+            "Sync iCal tasks",
+            () => {
+                const activeFile = this.app.workspace.getActiveFile();
+                if (activeFile) void this.runSync(activeFile, true);
+            },
+        );
 
         // 3. Visibility & Auto-Sync Logic
         this.app.workspace.onLayoutReady(() => {
@@ -57,59 +64,79 @@ export default class ICalSyncPlugin extends Plugin {
         });
 
         this.registerEvent(
-            this.app.workspace.on('file-open', () => this.handleFileChange())
+            this.app.workspace.on("file-open", () => {
+                this.handleFileChange();
+            }),
         );
 
         // Sync when returning to the app
-        this.registerDomEvent(window, 'focus', () => {
+        this.registerDomEvent(window, "focus", () => {
             const activeFile = this.app.workspace.getActiveFile();
-            if (activeFile && activeFile.name === this.settings.targetFilename) {
-                this.runSync(activeFile, false); 
+            if (
+                activeFile &&
+                activeFile.name === this.settings.targetFilename
+            ) {
+                void this.runSync(activeFile, false);
             }
         });
 
         // 4. Command Palette
         this.addCommand({
-            id: 'sync-ical-tasks',
-            name: 'Sync iCal tasks now',
+            id: "sync-ical-tasks",
+            name: "Sync iCal tasks now",
             callback: () => {
                 const activeFile = this.app.workspace.getActiveFile();
-                if (activeFile && activeFile.name === this.settings.targetFilename) {
-                    this.runSync(activeFile, true);
+                if (
+                    activeFile &&
+                    activeFile.name === this.settings.targetFilename
+                ) {
+                    void this.runSync(activeFile, true);
                 } else {
-                    new Notice(`Please open ${this.settings.targetFilename} to sync.`);
+                    new Notice(
+                        `Please open ${this.settings.targetFilename} to sync.`,
+                    );
                 }
-            }
+            },
         });
     }
 
-    onunload() {
+    override onunload() {
         // Explicitly remove the status bar item
         this.syncStatusItem.remove();
     }
-    
+
     private handleFileChange() {
         const activeFile = this.app.workspace.getActiveFile();
-        const isTarget = activeFile && activeFile.name === this.settings.targetFilename;
+        const isTarget =
+            activeFile && activeFile.name === this.settings.targetFilename;
 
         // Update Visibility
-        if (this.ribbonIconEl) this.ribbonIconEl.style.display = isTarget ? 'flex' : 'none';
+        if (this.ribbonIconEl)
+            this.ribbonIconEl.style.display = isTarget ? "flex" : "none";
         if (this.syncStatusItem) {
-            this.syncStatusItem.style.display = isTarget ? 'inline-flex' : 'none';
+            this.syncStatusItem.style.display = isTarget
+                ? "inline-flex"
+                : "none";
         }
 
         // Auto-sync if it's the target file (Design Choice #2)
         if (isTarget) {
             this.updateStatusBar(this.isSyncing);
-            this.runSync(activeFile, false); 
+            void this.runSync(activeFile, false);
         }
     }
 
     updateStatusBar(syncing: boolean) {
         this.syncStatusItem.empty();
-        const container = this.syncStatusItem.createEl("div", { cls: "ical-status-container" });
-        const iconSpan = container.createEl("span", { cls: "ical-status-icon" });
-        const textSpan = container.createEl("span", { cls: "ical-status-text" });
+        const container = this.syncStatusItem.createEl("div", {
+            cls: "ical-status-container",
+        });
+        const iconSpan = container.createEl("span", {
+            cls: "ical-status-icon",
+        });
+        const textSpan = container.createEl("span", {
+            cls: "ical-status-text",
+        });
 
         if (syncing) {
             setIcon(iconSpan, "refresh-cw"); // Lucide icon
@@ -132,57 +159,62 @@ export default class ICalSyncPlugin extends Plugin {
         if (!this.settings.icalUrl || this.settings.icalUrl.trim() === "") {
             if (force) new Notice("Please set an iCal URL in the settings.");
             return;
-        } 
+        }
 
         const now = Date.now();
         // Skip if not forced and within 5 min window
-        if (!force && (now - this.settings.lastSyncTimestamp < 300000)) {
+        if (!force && now - this.settings.lastSyncTimestamp < 300000) {
             // Even if we skip the sync, we update the bar to show the "last synced" time
             this.updateStatusBar(false);
             return;
         }
 
-        this.isSyncing = true;
-        this.updateStatusBar(true);
-        if (this.ribbonIconEl) this.ribbonIconEl.addClass("is-syncing-ribbon");
-
         try {
+            this.isSyncing = true;
+            this.updateStatusBar(true);
+            if (this.ribbonIconEl)
+                this.ribbonIconEl.addClass("is-syncing-ribbon");
+
             const response = await requestUrl(this.settings.icalUrl);
             // node-ical.parseICS becomes ICAL.parse
             const jcalData = ICAL.parse(response.text);
             const vcalendar = new ICAL.Component(jcalData);
-            
+
             // Get all VEVENT components
-            const vevents = vcalendar.getAllSubcomponents('vevent');
-            
+            const vevents = vcalendar.getAllSubcomponents("vevent");
+
             // Convert them to a format your TaskSyncEngine expects
-            const eventList = vevents.map(vevent => {
+            const eventList = vevents.map((vevent) => {
                 const event = new ICAL.Event(vevent);
-                
+
                 // Use the raw vevent component to fetch the URL property
-                const urlProp = vevent.getFirstPropertyValue('url');
-                
+                const urlProp = vevent.getFirstPropertyValue("url");
+
                 return {
                     summary: event.summary,
                     start: event.startDate.toJSDate(),
                     // Fallback to UID if URL isn't present
-                    url: urlProp || event.uid,
-                    type: 'VEVENT'
+                    url: urlProp ? urlProp.toString() : event.uid,
+                    type: "VEVENT",
                 };
             });
 
             await this.app.vault.process(file, (content) => {
-                if (!content.includes('### Tasks')) {
+                if (!content.includes("### Tasks")) {
                     new Notice("Sync aborted: '### Tasks' header missing.");
-                    return content; 
+                    return content;
                 }
 
-                const sections = content.split('### Tasks');
+                const sections = content.split("### Tasks");
                 const header = sections[0];
                 const taskContent = sections[1] || "";
 
                 let blocks = this.engine.parseMarkdown(taskContent);
-                blocks = this.engine.mergeNewTasks(blocks, eventList, this.syncManifest.getSet());
+                blocks = this.engine.mergeNewTasks(
+                    blocks,
+                    eventList,
+                    this.syncManifest.getSet(),
+                );
                 const sortedBlocks = this.engine.sortBlocks(blocks);
 
                 for (const block of sortedBlocks) {
@@ -196,16 +228,15 @@ export default class ICalSyncPlugin extends Plugin {
 
             this.settings.lastSyncTimestamp = Date.now();
             await this.saveSettings();
-            
-            // NOTICE FIX: Always show notice if forced, 
+
+            // NOTICE FIX: Always show notice if forced,
             // or maybe a smaller notice if it was automatic and found new items
             if (force) {
                 new Notice("Calendar sync complete.");
             }
-            
         } catch (error) {
             console.error("iCal Sync Error:", error);
-            new Notice("iCal Sync failed.");
+            new Notice("iCal sync failed.");
         } finally {
             this.isSyncing = false;
             this.updateStatusBar(false); // Ensure the spinner stops
@@ -215,7 +246,11 @@ export default class ICalSyncPlugin extends Plugin {
         }
     }
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        this.settings = Object.assign(
+            {},
+            DEFAULT_SETTINGS,
+            await this.loadData(),
+        );
     }
 
     async saveSettings() {

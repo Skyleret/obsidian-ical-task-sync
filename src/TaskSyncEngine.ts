@@ -1,9 +1,16 @@
-import { moment } from 'obsidian';
+import { moment } from "obsidian";
 
 interface TaskMetadata {
     id: string | null;
     date: string | null;
     statusChar: string;
+}
+
+interface CalendarEvent {
+    summary: string;
+    start: Date;
+    url: string;
+    type: string;
 }
 
 class TaskBlock {
@@ -19,26 +26,25 @@ class TaskBlock {
     private parseMetadata(line: string): TaskMetadata {
         const uidMatch = line.match(/\[link\]\((.*?)\)/);
         const dateMatch = line.match(/@(\d{4}-\d{2}-\d{2})/);
-        
+
         // REGEX FIX: Capture whatever is inside [ ]
-        const statusMatch = line.match(/^- \[([^\]])\]/); 
-        const statusChar = statusMatch ? statusMatch[1] : " ";
+        const statusMatch = line.match(/^- \[([^\]])\]/);
+        const statusChar = statusMatch && statusMatch[1] ? statusMatch[1] : " ";
 
         return {
-            id: (uidMatch && uidMatch[1]) ? uidMatch[1] : null,
-            date: (dateMatch && dateMatch[1]) ? dateMatch[1] : null,
-            statusChar: statusChar
+            id: uidMatch && uidMatch[1] ? uidMatch[1] : null,
+            date: dateMatch && dateMatch[1] ? dateMatch[1] : null,
+            statusChar: statusChar,
         };
     }
 
     toString(): string {
         // Ensure we don't end up with trailing newlines if subContent is empty
-        return [this.mainLine, ...this.subContent].join('\n');
+        return [this.mainLine, ...this.subContent].join("\n");
     }
 }
 
 export class TaskSyncEngine {
-    
     parseMarkdown(rawText: string): TaskBlock[] {
         const lines = rawText.split(/\r?\n/);
         const blocks: TaskBlock[] = [];
@@ -65,27 +71,30 @@ export class TaskSyncEngine {
         return blocks;
     }
 
-    mergeNewTasks(existingBlocks: TaskBlock[], newEvents: any[], manifest: Set<string>): TaskBlock[] {
+    mergeNewTasks(
+        existingBlocks: TaskBlock[],
+        newEvents: CalendarEvent[],
+        manifest: Set<string>,
+    ): TaskBlock[] {
         const updatedBlocks = [...existingBlocks];
 
         for (const event of newEvents) {
             const eventDate = moment(event.start).format("YYYY-MM-DD");
-            let eventUrl = typeof event.url === 'string' ? event.url : "";
-        
-            if (!eventUrl) {
-                const safeSummary = event.summary.replace(/[()\[\]\s]/g, "");
-                eventUrl = `fallback-${safeSummary}-${eventDate}`;
-            }
+
+            const eventUrl: string =
+                typeof event.url === "string" && event.url.length > 0
+                    ? event.url
+                    : `fallback-${event.summary.replace(/[()[\]\s]/g, "")}-${moment(event.start).format("YYYY-MM-DD")}`;
 
             const eventSummary = event.summary;
-            const existingBlockIndex = updatedBlocks.findIndex(b => b.metadata.id === eventUrl);
 
-            if (existingBlockIndex !== -1) {
-                const block = updatedBlocks[existingBlockIndex];
+            const block = updatedBlocks.find((b) => b.metadata.id === eventUrl);
 
+            if (block) {
+                // TypeScript now knows 'block' is NOT undefined inside this block
                 const char = block.metadata.statusChar;
                 const newMainLine = `- [${char}] ${eventSummary} [link](${eventUrl}) (@${eventDate})`;
-                
+
                 if (block.mainLine !== newMainLine) {
                     block.mainLine = newMainLine;
                     block.metadata.date = eventDate;
@@ -104,7 +113,7 @@ export class TaskSyncEngine {
             const dateA = a.metadata.date;
             const dateB = b.metadata.date;
 
-            // Sorting logic: 
+            // Sorting logic:
             // 1. Both have dates -> Chronological
             // 2. One has date -> Dated comes first
             // 3. Neither has date -> Maintain original order (Stable sort)
@@ -116,6 +125,6 @@ export class TaskSyncEngine {
     }
 
     render(blocks: TaskBlock[]): string {
-        return blocks.map(b => b.toString()).join('\n');
+        return blocks.map((b) => b.toString()).join("\n");
     }
 }
