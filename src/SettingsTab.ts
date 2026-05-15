@@ -12,9 +12,9 @@ export class ICalSyncSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     new Setting(containerEl)
-      .setName("Ical url")
+      .setName("Ical URL")
       .setDesc(
-        "The secret url for your calendar (e.g., from google calendar or icloud)",
+        "The secret url for your calendar (e.g., from Google Calendar or iCloud)",
       )
       .addText((text) =>
         text

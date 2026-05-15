@@ -51,7 +51,7 @@ export default class ICalSyncPlugin extends Plugin {
         // 2. Ribbon Icon Setup
         this.ribbonIconEl = this.addRibbonIcon(
             "calendar-glyph",
-            "Sync iCal tasks",
+            "Sync ical tasks",
             () => {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) void this.runSync(activeFile, true);
@@ -83,7 +83,7 @@ export default class ICalSyncPlugin extends Plugin {
         // 4. Command Palette
         this.addCommand({
             id: "sync-ical-tasks",
-            name: "Sync iCal tasks now",
+            name: "Sync ical tasks now",
             callback: () => {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (
@@ -157,7 +157,7 @@ export default class ICalSyncPlugin extends Plugin {
     async runSync(file: TFile, force: boolean = false) {
         if (this.isSyncing) return;
         if (!this.settings.icalUrl || this.settings.icalUrl.trim() === "") {
-            if (force) new Notice("Please set an iCal URL in the settings.");
+            if (force) new Notice("Please set an ical URL in the settings.");
             return;
         }
 
@@ -201,7 +201,7 @@ export default class ICalSyncPlugin extends Plugin {
 
             await this.app.vault.process(file, (content) => {
                 if (!content.includes("### Tasks")) {
-                    new Notice("Sync aborted: '### Tasks' header missing.");
+                    new Notice("Sync aborted: tasks header missing.");
                     return content;
                 }
 
@@ -236,7 +236,7 @@ export default class ICalSyncPlugin extends Plugin {
             }
         } catch (error) {
             console.error("iCal Sync Error:", error);
-            new Notice("iCal sync failed.");
+            new Notice("Ical sync failed.");
         } finally {
             this.isSyncing = false;
             this.updateStatusBar(false); // Ensure the spinner stops
