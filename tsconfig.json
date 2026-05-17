@@ -2,14 +2,13 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "strict": true,
     "sourceMap": true,
     "inlineSources": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
-      "obsidian": ["node_modules/obsidian/obsidian.d.ts"]
+      "obsidian": ["./node_modules/obsidian/obsidian.d.ts"]
     }
   },
   "include": ["src/**/*.ts"]

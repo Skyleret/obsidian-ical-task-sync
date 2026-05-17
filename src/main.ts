@@ -1,4 +1,5 @@
-import { Plugin, TFile, Notice, requestUrl, setIcon, moment } from "obsidian";
+import { Plugin, TFile, Notice, requestUrl, setIcon } from "obsidian";
+import moment from "moment";
 import ICAL from "ical.js";
 import { TaskSyncEngine } from "./TaskSyncEngine";
 import { ManifestManager } from "./syncManifest";
