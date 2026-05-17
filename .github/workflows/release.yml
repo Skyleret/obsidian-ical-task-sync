@@ -1,0 +1,51 @@
+name: Build and Release with Attestation
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  id-token: write      # Required for signing the artifact attestation
+  attestations: write  # Required for generating GitHub attestations
+  contents: write      # Required to create the release and upload assets
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm' # Speeds up builds by caching npm dependencies
+
+      # 1. Run your build command (Compiles main.js and style.css into your root or build folder)
+      - name: Install dependencies and build assets
+        run: |
+          npm ci
+          npm run build
+
+      # 2. Generate Attestations for BOTH main.js and style.css
+      # Since they are in the same folder as the manifest, we target them explicitly.
+      - name: Generate Artifact Attestations
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            main.js
+            style.css
+
+      # 3. Automatically create the GitHub Release and upload the attested assets
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            main.js
+            style.css
+            manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
